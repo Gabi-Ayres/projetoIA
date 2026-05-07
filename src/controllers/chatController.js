@@ -2,20 +2,25 @@ import { callGeminiStream } from "../services/gemineService.js";
 import db from "../db.js";
 
 export async function chatStreamController(req, res) {
+    // recebe a mensagem do utilizador
     const userMessage = req.query.message;
+
   if (!userMessage) {
     return res.status(400).send('Missing message parameter');
   }
 
+  // configura o streamming
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
   try {
+    // chama o Gemini e recebe a resporta em streaming
     const result = await callGeminiStream(userMessage);
     let fullResponse = '';
 
+    // vai enviado a medida q chega
     for await (const chunk of result) {
       const text = typeof chunk.text === 'function' ? chunk.text() : chunk.text;
       if (text) {
@@ -35,3 +40,4 @@ export async function chatStreamController(req, res) {
     res.end();
   }
 }
+
