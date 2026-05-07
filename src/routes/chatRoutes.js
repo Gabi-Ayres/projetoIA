@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { chatStreamController } from '../controllers/taskController.js';
+import { chatStreamController } from '../controllers/chatController.js';
 
 const router = Router();
 
