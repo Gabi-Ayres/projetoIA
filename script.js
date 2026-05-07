@@ -1,48 +1,58 @@
-async function enviarMensagem() {
+const BASE_URL = 'http://localhost:3000';
 
-    // Ler o texto do input
+
+async function enviarMensagem() {
     const mensagem = document.getElementById('input-mensagem').value;
 
-    // Se estiver vazio, não faz nada
-    if (mensagem === '') {
-        return;
-    }
+    if (mensagem === '') return;
 
-    // Mostrar a mensagem do utilizador no chat
     adicionarMensagemUtilizador(mensagem);
-
-    // Limpar o input e desativar o botão
     document.getElementById('input-mensagem').value = '';
     document.getElementById('btn-enviar').disabled = true;
 
-    // Mostrar "a pensar..."
-    adicionarMensagemBot('⏳ A pensar...', 'msg-loading');
+    // cria div do bot vazia para ir preenchendo
+    const divBot = adicionarMensagemBot('');
 
-    // Enviar para o backend
-    const resposta = await fetch('/api/chat/mensagem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: mensagem })
-    });
+    // usa EventSource para receber o stream
+    const eventSource = new EventSource('http://localhost:3000/api/chat?message=' + encodeURIComponent(mensagem));
 
-    const dados = await resposta.json();
+   eventSource.onmessage = function(evento) {
+    if (evento.data === '[DONE]') {
+        eventSource.close();
+        document.getElementById('btn-enviar').disabled = false;
+        
+        // chamar o POST para criar e guardar o itinerário
+        fetch(BASE_URL + '/api/roteiro', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mensagem: mensagem })
+        })
+        .then(function(resposta) {
+            return resposta.json();
+        })
+        .then(function(dados) {
+            console.log('Itinerário criado:', dados);
+            carregarItinerariosDaBD(); // ← agora vai buscar e mostrar
+        });
 
-    // Remover o "a pensar..." e mostrar a resposta
-    document.getElementById('msg-loading').remove();
-    adicionarMensagemBot(dados.resposta);
-
-    // Se veio itinerário, mostrar na lista
-    if (dados.itinerario.length > 0) {
-        mostrarItinerario(dados.itinerario);
+    } else {
+        divBot.querySelector('.texto-mensagem').innerHTML += evento.data;
     }
-
-    // Reativar o botão
-    document.getElementById('btn-enviar').disabled = false;
+};
 }
 
-// -----------------------------------------------
-// Mostrar mensagem do utilizador no chat
-// -----------------------------------------------
+function adicionarMensagemBot(texto) {
+    const areaMensagens = document.getElementById('area-mensagens');
+
+    const div = document.createElement('div');
+    div.classList.add('mensagem', 'mensagem-bot');
+    div.innerHTML = '<span class="icone-bot">🤖</span><div class="texto-mensagem">' + texto + '</div>';
+
+    areaMensagens.appendChild(div);
+    areaMensagens.scrollTop = areaMensagens.scrollHeight;
+
+    return div; // ← importante para o streaming ir preenchendo
+}
 function adicionarMensagemUtilizador(texto) {
     const areaMensagens = document.getElementById('area-mensagens');
 
@@ -54,100 +64,63 @@ function adicionarMensagemUtilizador(texto) {
     areaMensagens.scrollTop = areaMensagens.scrollHeight;
 }
 
-// -----------------------------------------------
-// Mostrar mensagem do bot no chat
-// -----------------------------------------------
-function adicionarMensagemBot(texto, id) {
-    const areaMensagens = document.getElementById('area-mensagens');
+async function carregarItinerariosDaBD() {
+    const resposta   = await fetch('http://localhost:3000/api/roteiro');
+    const itinerarios = await resposta.json();
 
-    const div = document.createElement('div');
-    div.classList.add('mensagem', 'mensagem-bot');
-
-    // Se tiver id, adiciona (usado para remover o "a pensar...")
-    if (id) {
-        div.id = id;
-    }
-
-    div.innerHTML = '<span class="icone-bot">🤖</span><div class="texto-mensagem">' + texto + '</div>';
-
-    areaMensagens.appendChild(div);
-    areaMensagens.scrollTop = areaMensagens.scrollHeight;
-}
-
-// -----------------------------------------------
-// Mostrar o itinerário na coluna da direita
-// -----------------------------------------------
-function mostrarItinerario(itinerario) {
-    document.getElementById('sem-itinerario').style.display = 'none';
-    document.getElementById('lista-itinerario').innerHTML = '';
-
-    for (let i = 0; i < itinerario.length; i++) {
-        const item = itinerario[i];
-
-        let cartao = '<div class="cartao-dia">'
-            + '<div class="cabecalho-dia">📅 Dia ' + item.dia + '</div>'
-            + '<div class="conteudo-dia">'
-            + '<div class="local-nome">📍 ' + item.local + '</div>'
-            + '<div class="local-transporte">🚌 ' + item.transporte + '</div>'
-            + '<div class="local-descricao">' + item.descricao + '</div>'
-            + '</div>'
-            + '</div>';
-
-        document.getElementById('lista-itinerario').innerHTML += cartao;
-    }
-
-    // Recarregar da BD para ter os IDs reais (para poder apagar)
-    carregarItinerarioDaBD();
-}
-
-// -----------------------------------------------
-// Carregar itinerário guardado na base de dados
-// -----------------------------------------------
-async function carregarItinerarioDaBD() {
-    const resposta   = await fetch('/api/itinerario');
-    const itinerario = await resposta.json();
-
-    if (itinerario.length === 0) {
+    if (itinerarios.length === 0) {
         return;
     }
 
-    document.getElementById('sem-itinerario').style.display = 'none';
-    document.getElementById('lista-itinerario').innerHTML = '';
+    document.getElementById('sem-roteiro').style.display = 'none';
+    document.getElementById('lista-roteiro').innerHTML = '';
 
-    for (let i = 0; i < itinerario.length; i++) {
-        const item = itinerario[i];
+    // agrupar por viagem_nome
+    const viagens = {};
+    for (let i = 0; i < itinerarios.length; i++) {
+        const item = itinerarios[i];
 
-        let cartao = '<div class="cartao-dia" id="item-' + item.id + '">'
-            + '<div class="cabecalho-dia">📅 Dia ' + item.dia + '</div>'
-            + '<div class="conteudo-dia">'
-            + '<div class="local-nome">📍 ' + item.local_nome + '</div>'
-            + '<div class="local-transporte">🚌 ' + item.transporte + '</div>'
-            + '<div class="local-descricao">' + item.descricao + '</div>'
-            + '<button class="btn-apagar" onclick="apagarItem(' + item.id + ')">🗑️ Remover</button>'
-            + '</div>'
-            + '</div>';
+        if (!viagens[item.viagem_nome]) {
+            viagens[item.viagem_nome] = [];
+        }
+        viagens[item.viagem_nome].push(item);
+    }
 
-        document.getElementById('lista-itinerario').innerHTML += cartao;
+    // mostrar cada viagem
+    for (const nomeViagem in viagens) {
+        let html = '<div class="cartao-viagem">'
+            + '<div class="cabecalho-viagem">✈️ ' + nomeViagem + '</div>';
+
+        const dias = viagens[nomeViagem];
+        for (let i = 0; i < dias.length; i++) {
+            const dia = dias[i];
+            html += '<div class="cartao-dia" id="item-' + dia.id + '">'
+                + '<div class="cabecalho-dia">📅 Dia ' + dia.dia + '</div>'
+                + '<div class="conteudo-dia">'
+                + '<div class="local-nome">📍 ' + dia.local_nome + '</div>'
+                + '<div class="local-transporte">🚌 ' + dia.transporte + '</div>'
+                + '<div class="local-descricao">' + dia.descricao + '</div>'
+                + '<button class="btn-apagar" onclick="apagarItem(' + dia.id + ')">🗑️ Remover</button>'
+                + '</div>'
+                + '</div>';
+        }
+
+        html += '</div>';
+        document.getElementById('lista-roteiro').innerHTML += html;
     }
 }
 
-// -----------------------------------------------
-// Apagar um item do itinerário
-// -----------------------------------------------
 async function apagarItem(id) {
-    await fetch('/api/itinerario/' + id, { method: 'DELETE' });
+    await fetch(BASE_URL + '/api/roteiro/' + id, { method: 'DELETE' });
 
     document.getElementById('item-' + id).remove();
 
-    const lista = document.getElementById('lista-itinerario');
+    const lista = document.getElementById('lista-roteiro');
     if (lista.children.length === 0) {
-        document.getElementById('sem-itinerario').style.display = 'block';
+        document.getElementById('sem-roteiro').style.display = 'block';
     }
 }
 
-// -----------------------------------------------
-// Limpar a conversa e recomeçar
-// -----------------------------------------------
 async function limparConversa() {
     const confirmar = confirm('Recomeçar a conversa?');
 
@@ -155,27 +128,12 @@ async function limparConversa() {
         return;
     }
 
-    await fetch('/api/chat/limpar', { method: 'DELETE' });
+    await fetch('http://localhost:3000/api/chat/limpar', { method: 'DELETE' });
 
     document.getElementById('area-mensagens').innerHTML = '';
     adicionarMensagemBot('Conversa reiniciada 🔄 Para onde queres viajar?');
-
-    document.getElementById('lista-itinerario').innerHTML = '';
-    document.getElementById('sem-itinerario').style.display = 'block';
 }
 
-// -----------------------------------------------
-// Enviar com a tecla Enter
-// -----------------------------------------------
-function verificarEnter(evento) {
-    if (evento.key === 'Enter') {
-        enviarMensagem();
-    }
-}
-
-// -----------------------------------------------
-// Quando a página carrega, buscar itinerário
-// -----------------------------------------------
 window.onload = function() {
-    carregarItinerarioDaBD();
+    carregarItinerariosDaBD(); // ← nome atualizado
 };
