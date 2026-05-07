@@ -256,6 +256,14 @@ button {
     background: #ffcdd2;
 }
 
+footer {
+    background: #023e8a;
+    color: white;
+    text-align: center;
+    padding: 15px 20px;
+    margin-top: 20px;
+}
+
 /* --- RESPONSIVO: ecrãs pequenos --- */
 @media (max-width: 768px) {
     main {
