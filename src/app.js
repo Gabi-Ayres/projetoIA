@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import chatRoutes from './routes/chatRoutes.js';
 import roteiroRoutes from './routes/roteiroRoutes.js';
+import testeCallingRoutes from './routes/testeCallingRoutes.js';
+
 
 const app = express();
 app.use(cors({ origin: ["http://localhost:5173", "http://127.0.0.1:5500" ]}));
@@ -10,6 +12,8 @@ app.use(express.json());
 
 app.use('/api', chatRoutes);
 app.use('/api/roteiro', roteiroRoutes);
+app.use('/api/teste', testeCallingRoutes);
+
 
 
 app.get('/', (req, res) => {

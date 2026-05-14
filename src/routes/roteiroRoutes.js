@@ -1,11 +1,13 @@
 import { Router } from "express"; 
-import { getItinerariosController, criarRoteiroController, apagarItemController } from "../controllers/roteiroController.js";
+import { roteiroController, getItinerariosController, apagarViagemController, apagarItemController } from "../controllers/roteiroController.js";
+import { testeControllerCalling } from "../controllers/testeControllerCalling.js";
 
 const router = Router();
 
 router.get('/',  getItinerariosController);
-router.post('/', criarRoteiroController);
-router.delete('/:id', apagarItemController);   
+router.post('/', roteiroController);
+router.delete('/dia/:id', apagarItemController);
+router.delete('/:id', apagarViagemController);
  
 
 export default router;

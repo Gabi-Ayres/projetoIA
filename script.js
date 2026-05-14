@@ -32,11 +32,19 @@ async function enviarMensagem() {
         })
         .then(function(dados) {
             console.log('Itinerário criado:', dados);
+            console.log('Action:', dados.action);
+            console.log('Resposta:', dados.resposta);
+            console.log('Tipo da resposta:', typeof dados.resposta);
+
+
+         if (dados.resposta && dados.action !== 'NONE') {
+        adicionarMensagemBot(dados.resposta);
+    }   
             carregarItinerariosDaBD(); // ← agora vai buscar e mostrar
         });
 
     } else {
-        divBot.querySelector('.texto-mensagem').innerHTML += evento.data;
+        divBot.querySelector('.texto-mensagem').innerHTML += evento.data; // vai concatendo os chucks ate ter done
     }
 };
 }
@@ -68,32 +76,40 @@ async function carregarItinerariosDaBD() {
     const resposta   = await fetch('http://localhost:3000/api/roteiro');
     const itinerarios = await resposta.json();
 
+     console.log('Itinerários recebidos:', itinerarios);
+
     if (itinerarios.length === 0) {
         return;
     }
 
-    document.getElementById('sem-roteiro').style.display = 'none';
-    document.getElementById('lista-roteiro').innerHTML = '';
+    document.getElementById('sem-roteiro').style.display = 'none'; // esconder menssagem "sem roteiros" se houver itinerários para mostrar
+    document.getElementById('lista-roteiro').innerHTML = ''; // limpar antes de mostrar os itinerários
 
-    // agrupar por viagem_nome
+    // agrupar por viagem_id
     const viagens = {};
     for (let i = 0; i < itinerarios.length; i++) {
         const item = itinerarios[i];
 
-        if (!viagens[item.viagem_nome]) {
-            viagens[item.viagem_nome] = [];
+        if (!viagens[item.viagem_id]) {
+            viagens[item.viagem_id] = {
+                nome: item.viagem_nome,
+                dias: []
+            } 
         }
-        viagens[item.viagem_nome].push(item);
+        viagens[item.viagem_id].dias.push(item);
     }
 
     // mostrar cada viagem
-    for (const nomeViagem in viagens) {
-        let html = '<div class="cartao-viagem">'
-            + '<div class="cabecalho-viagem">✈️ ' + nomeViagem + '</div>';
+    for (const viagemId in viagens) {
+        const viagem = viagens[viagemId];
+        let html = '<div class="cartao-viagem" id="viagem-' + viagemId + '">'
+            + '<div class="cabecalho-viagem">✈️ ' + viagem.nome 
+            + '<button class="btn-apagar" onclick="apagarViagem(' + viagemId + ')">🗑️ Apagar</button>'
+            + '</div>';
 
-        const dias = viagens[nomeViagem];
-        for (let i = 0; i < dias.length; i++) {
-            const dia = dias[i];
+       
+        for (let i = 0; i < viagem.dias.length; i++) {
+            const dia = viagem.dias[i];
             html += '<div class="cartao-dia" id="item-' + dia.id + '">'
                 + '<div class="cabecalho-dia">📅 Dia ' + dia.dia + '</div>'
                 + '<div class="conteudo-dia">'
@@ -110,15 +126,21 @@ async function carregarItinerariosDaBD() {
     }
 }
 
-async function apagarItem(id) {
+async function apagarViagem(id) {
     await fetch(BASE_URL + '/api/roteiro/' + id, { method: 'DELETE' });
 
-    document.getElementById('item-' + id).remove();
+    document.getElementById('viagem-' + id).remove();
 
+  // se não houver mais viagens, mostrar mensagem
     const lista = document.getElementById('lista-roteiro');
     if (lista.children.length === 0) {
         document.getElementById('sem-roteiro').style.display = 'block';
     }
+}
+
+async function apagarItem(id) {
+    await fetch(BASE_URL + '/api/roteiro/dia/' + id, { method: 'DELETE' });
+    document.getElementById('item-' + id).remove();
 }
 
 async function limparConversa() {
@@ -134,6 +156,18 @@ async function limparConversa() {
     adicionarMensagemBot('Conversa reiniciada 🔄 Para onde queres viajar?');
 }
 
+async function carregarHistoricoChat() {
+    const resposta   = await fetch(BASE_URL + '/api/historico');
+    const historico  = await resposta.json();
+
+    for (let i = 0; i < historico.length; i++) {
+        const item = historico[i];
+        adicionarMensagemUtilizador(item.user_message);
+        adicionarMensagemBot(item.ai_response);
+    }
+}
+
 window.onload = function() {
     carregarItinerariosDaBD(); // ← nome atualizado
+    carregarHistoricoChat();
 };
