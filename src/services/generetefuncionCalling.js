@@ -116,8 +116,25 @@ const deleteItinerario = {
 
 export const houseFns = [addViagem, addItinerario, deleteViagem, deleteItinerario, updateViagem, updateItinerario, getItinerario, getViagens];
 
-export const chat = ai.chats.create({
+  // buscar histórico da BD
+    const [rows] = await db.execute( // [rows] so queremos as linhas nao as colunas [fields]
+        'SELECT * FROM chat_history ORDER BY created_at DESC LIMIT 5'
+    );
+
+    // converter para o formato do Gemini
+    const history = rows.reverse().flatMap(row => [//flatMap transforma cada linha em duas mensagens
+        { role: "user",  parts: [{ text: row.user_message }] },
+        { role: "model", parts: [{ text: row.ai_response }] }
+    ]);
+
+    //adicionar a mensagem atual no fim
+    history.push({ role: "user", parts: [{ text: userPrompt }] });
+
+
+export const chat = ai.models.generateContent({
+    
     model: MODEL_NAME,
+    contents: history,
     config: {
         tools: [{ functionDeclarations: houseFns }],
         toolConfig: {
