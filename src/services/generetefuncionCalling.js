@@ -1,5 +1,6 @@
 import { Type, GoogleGenAI } from '@google/genai';
 import { MODEL_NAME, ai } from '../config/gemini.js';
+import db from '../db.js';
 
 
 const addViagem = {
@@ -116,58 +117,35 @@ const deleteItinerario = {
 
 export const houseFns = [addViagem, addItinerario, deleteViagem, deleteItinerario, updateViagem, updateItinerario, getItinerario, getViagens];
 
-  // buscar histórico da BD
-    const [rows] = await db.execute( // [rows] so queremos as linhas nao as colunas [fields]
-        'SELECT * FROM chat_history ORDER BY created_at DESC LIMIT 5'
+export async function callGemniniCalling(history) {
+    console.log("📜 History completo enviado ao Gemini:", JSON.stringify(history, null, 2));
+
+    const chamada = ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: history,
+        config: {
+            tools: [{ functionDeclarations: houseFns }],
+            toolConfig: { functionCallingConfig: { mode: 'auto' } },
+            systemInstruction: `
+És o TravelBot, um assistente especialista em viagens.
+Respondes sempre em português de Portugal.
+
+Quando o utilizador pedir uma viagem:
+1. Chama add_viagem UMA vez
+2. Após receberes o viagem_id, chama add_itinerario UMA vez por dia
+3. Após adicionares TODOS os dias, responde com texto confirmando a viagem criada
+
+IMPORTANTE:
+- Chama add_viagem PRIMEIRO e espera pelo viagem_id
+- Só depois chama add_itinerario com o viagem_id recebido
+- Após todas as funções executadas, TERMINA com uma mensagem de texto!
+            `
+        }
+    });
+
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 45000)
     );
 
-    // converter para o formato do Gemini
-    const history = rows.reverse().flatMap(row => [//flatMap transforma cada linha em duas mensagens
-        { role: "user",  parts: [{ text: row.user_message }] },
-        { role: "model", parts: [{ text: row.ai_response }] }
-    ]);
-
-    //adicionar a mensagem atual no fim
-    history.push({ role: "user", parts: [{ text: userPrompt }] });
-
-
-export const chat = ai.models.generateContent({
-    
-    model: MODEL_NAME,
-    contents: history,
-    config: {
-        tools: [{ functionDeclarations: houseFns }],
-        toolConfig: {
-            functionCallingConfig: {
-                mode: 'auto'
-            }
-        },
- //       temperature: 0.1,       
-        systemInstruction: `
-              És o TravelBot, um assistente especialista em viagens.
-    Respondes sempre em português de Portugal.
-
-    Regra geral:
-    Quando o utilizador pedir uma viagem com X dias:
-    1. Chama add_viagem UMA vez para criar a viagem
-    2. Chama add_intinerario OBRIGATORIAMENTE para CADA dia separadamente
-       - Se forem 2 dias → chama add_intinerario 2 vezes
-       - Se forem 3 dias → chama add_intinerario 3 vezes
-    3. Nunca termines sem criar todos os dias pedidos!
-
-    Quando o utilizador perguntar pelas viagens existentes:
-    - Se o utilizador perguntar por uma viagem específica e vires algo semelhante na lista de viagens, deves OBRIGATORIAMENTE chamar get_intinerario (ou get_itinerario) usando o ID correspondente antes de dar a resposta fina.
-    - Nunca digas que não tens acesso às viagens!
-
-    Quando o utilizador perguntar pelos dias de uma viagem:
-    - Chama SEMPRE get_intinerario com o viagem_id correto
-
-     IMPORTANTE: 
-    - Chama add_viagem PRIMEIRO e espera pelo viagem_id
-    - Só depois chama add_intinerario com o viagem_id recebido
-    - NUNCA uses viagem_id: 1, usa sempre o id devolvido pelo add_viagem
-
-    Não perguntes o nome da viagem - inventa um nome criativo!
-        `                        
-    }
-});
+    return Promise.race([chamada, timeout]);
+}

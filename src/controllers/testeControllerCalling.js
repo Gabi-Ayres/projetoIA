@@ -2,6 +2,7 @@
 import { chat  } from '../services/testeFuncionCalling.js';
 import db from '../db.js';
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function testeControllerCalling(req, res) {
 
@@ -14,7 +15,7 @@ console.log("\n🎯 Pedido inicial enviado");
 console.log("Resposta:", JSON.stringify(currentResponse));
 
 let step = 1;
-const MAX_STEPS = 5; // proteção contra loop infinito ... limite de interações do modelo.
+const MAX_STEPS = 10;
 
 while (currentResponse.functionCalls?.length && step <= MAX_STEPS) { 
   console.log(`\n🔁 STEP ${step}`);
@@ -130,34 +131,53 @@ while (currentResponse.functionCalls?.length && step <= MAX_STEPS) {
 
   };
 
-  console.log("Encaminhando resultados para o Gemini...")
   console.log("📤 Enviando ao Gemini:", JSON.stringify(functionResults, null, 2));
-  
+
+  // Plano gratuito: ~15 RPM → mínimo 4s entre chamadas. Usamos 5s para ter margem.
+  console.log(`⏳ A aguardar 5s (limite do plano gratuito)...`);
+  await sleep(5000);
+
   try {
-   /*  currentResponse = await Promise.race([
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 60000)
+    );
+
+    currentResponse = await Promise.race([
       chat.sendMessage({
         message: {
           role: 'tool',
-          parts: functionResults.map(fr => ({
-            functionResponse: fr
-          }))
+          parts: functionResults.map(fr => ({ functionResponse: fr }))
         }
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout: Gemini demorou muito tempo')), 30000))
+      timeout
     ]);
- */
-  currentResponse = await 
-      chat.sendMessage({
-        message: {
-          role: 'tool',
-          parts: functionResults.map(fr => ({
-            functionResponse: fr
-          }))
-        }
-      })
+
+    console.log(`📥 Resposta recebida no Step ${step}`);
+
   } catch (error) {
-    console.error(`❌ Erro no Step ${step}:`, error.message);
-    return res.status(500).json({ erro: `Erro no step ${step}: ${error.message}` });
+    if (error.message === 'TIMEOUT') {
+      console.error(`❌ Step ${step}: Gemini não respondeu em 60s`);
+      return res.status(504).json({ erro: '❌ O Gemini demorou demasiado tempo. Tenta com uma viagem mais curta.' });
+    }
+    const isRateLimit = error.status === 429 || error.message?.includes('429');
+    if (isRateLimit) {
+      console.log('⏳ Rate limit atingido. A aguardar 15s antes de tentar novamente...');
+      await sleep(15000);
+      try {
+        currentResponse = await chat.sendMessage({
+          message: {
+            role: 'tool',
+            parts: functionResults.map(fr => ({ functionResponse: fr }))
+          }
+        });
+      } catch (retryError) {
+        console.error(`❌ Erro no retry do Step ${step}:`, retryError.message);
+        return res.status(429).json({ erro: '❌ Demasiados pedidos ao Gemini. Aguarda um momento e tenta novamente.' });
+      }
+    } else {
+      console.error(`❌ Erro no Step ${step}:`, error.message);
+      return res.status(500).json({ erro: `Erro no step ${step}: ${error.message}` });
+    }
   }
   console.log("Iterando...");
 
