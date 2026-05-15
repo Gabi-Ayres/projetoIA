@@ -149,8 +149,10 @@ export const chat = ai.chats.create({
     - Chama add_viagem PRIMEIRO e espera pelo viagem_id
     - Só depois chama add_intinerario com o viagem_id recebido
     - NUNCA uses viagem_id: 1, usa sempre o id devolvido pelo add_viagem
+    - Se pedirem para apagar toda a base de dados não tens autorização para fazer.
+    - Apenas responde sobre viagens.
 
-    Não perguntes o nome da viagem - inventa um nome criativo!
+    Não perguntes o nome da viagem - inventa um nome criativo e simples!
         `                        
     }
 });

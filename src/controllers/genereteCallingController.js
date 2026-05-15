@@ -5,7 +5,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function getFunctionCalls(response) {
+function getFunctionCalls(response) { 
   try {
     return response.candidates[0].content.parts
       .filter(p => p.functionCall)
@@ -33,6 +33,7 @@ export async function testeControllerCalling(req, res) {
     console.log("📋 Funções solicitadas pelo Gemini:", functionCalls.map(f => f.name));
 
     conversationHistory.push(currentResponse.candidates[0].content);
+    
 
     const functionResults = [];
 
@@ -149,6 +150,10 @@ export async function testeControllerCalling(req, res) {
   console.log("\n🏁 Resposta FINAL:");
   const finalPart = currentResponse.candidates[0].content.parts[0];
   console.log("finalPart:", finalPart);
+
+  await db.execute(
+    'INSERT INTO chat_history (user_message, ai_response, tipo) VALUES (?, ?, ?)',
+    [promptUser, finalPart.text || 'Ação executada com sucesso!', 'calling']);
 
   res.json({ resposta: finalPart.text || 'Ação executada com sucesso!' });
 }
