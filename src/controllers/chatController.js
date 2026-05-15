@@ -2,26 +2,28 @@ import { callGeminiStream } from "../services/gemineService.js";
 import db from "../db.js";
 
 export async function chatStreamController(req, res) {
-    // recebe a mensagem do utilizador
-    const userMessage = req.query.message?.trim();
+  // recebe a mensagem do utilizador
+  const userMessage = req.query.message?.trim();
 
   if (!userMessage) {
-    return res.status(400).send('Mensagem em falta.');
+    return res.status(400).send("Mensagem em falta.");
   }
   if (userMessage.length > 500) {
-    return res.status(400).send('Mensagem demasiado longa (máximo 500 caracteres).');
+    return res
+      .status(400)
+      .send("Mensagem demasiado longa (máximo 500 caracteres).");
   }
 
   // configura o streamming
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
   try {
     // chama o Gemini e recebe a resporta em streaming
     const result = await callGeminiStream(userMessage);
-    let fullResponse = '';
+    let fullResponse = "";
 
     // vai enviado a medida q chega
     for await (const chunk of result) {
@@ -33,46 +35,48 @@ export async function chatStreamController(req, res) {
       }
     }
 
-    res.write('data: [DONE]\n\n');
+    res.write("data: [DONE]\n\n");
     res.end();
-
-    await db.execute('INSERT INTO chat_history (user_message, ai_response, tipo) VALUES (?, ?, ?)', [userMessage, fullResponse, 'chat']);
+    // guarda o histórico na BD
+    await db.execute(
+      "INSERT INTO chat_history (user_message, ai_response, tipo) VALUES (?, ?, ?)",
+      [userMessage, fullResponse, "chat"],
+    );
   } catch (error) {
-     console.error('Erro no chat stream:', error.message);
+    console.error("Erro no chat stream:", error.message);
 
-        if (error.message === 'GEMINI_RATE_LIMIT') {
-            res.write('data: ❌ Demasiados pedidos. Aguarda um momento!\n\n');
-        } else if (error.message === 'GEMINI_UNAVAILABLE') {
-            res.write('data: ❌ Serviço temporariamente indisponível!\n\n');
-        } else if (error.message === 'GEMINI_ERROR') {
-            res.write('data: ❌ Erro ao comunicar com a IA!\n\n');
-        } else {
-            res.write('data: ❌ Erro inesperado. Tenta novamente!\n\n');
-        }
+    if (error.message === "GEMINI_RATE_LIMIT") {
+      res.write("data: ❌ Demasiados pedidos. Aguarda um momento!\n\n");
+    } else if (error.message === "GEMINI_UNAVAILABLE") {
+      res.write("data: ❌ Serviço temporariamente indisponível!\n\n");
+    } else if (error.message === "GEMINI_ERROR") {
+      res.write("data: ❌ Erro ao comunicar com a IA!\n\n");
+    } else {
+      res.write("data: ❌ Erro inesperado. Tenta novamente!\n\n");
+    }
 
-        res.end();
+    res.end();
   }
 }
 
 export async function getHistoricoController(req, res) {
   try {
-  const [rows] = await db.execute(
-        'SELECT * FROM chat_history ORDER BY created_at ASC'
+    const [rows] = await db.execute(
+      "SELECT * FROM chat_history ORDER BY created_at ASC",
     );
     res.json(rows);
   } catch (error) {
-     console.error('Erro ao buscar histórico:', error.message);
-        res.status(500).json({ erro: 'Erro ao buscar histórico!' });
+    console.error("Erro ao buscar histórico:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar histórico!" });
   }
 }
 
 export async function limparHistoricoController(req, res) {
   try {
-    await db.execute('DELETE FROM chat_history');
-    res.json({ mensagem: 'Histórico apagado com sucesso!' });
+    await db.execute("DELETE FROM chat_history");
+    res.json({ mensagem: "Histórico apagado com sucesso!" });
   } catch (error) {
-    console.error('Erro ao limpar histórico:', error.message);
-    res.status(500).json({ erro: 'Erro ao limpar histórico!' });
+    console.error("Erro ao limpar histórico:", error.message);
+    res.status(500).json({ erro: "Erro ao limpar histórico!" });
   }
 }
-
