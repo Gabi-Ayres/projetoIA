@@ -125,7 +125,7 @@ export const chat = ai.chats.create({
                 mode: 'auto'
             }
         },
- //       temperature: 0.1,       
+ //       temperature: 0.1,
         systemInstruction: `
               És o TravelBot, um assistente especialista em viagens.
     Respondes sempre em português de Portugal.
@@ -145,7 +145,7 @@ export const chat = ai.chats.create({
     Quando o utilizador perguntar pelos dias de uma viagem:
     - Chama SEMPRE get_intinerario com o viagem_id correto
 
-     IMPORTANTE: 
+     IMPORTANTE:
     - Chama add_viagem PRIMEIRO e espera pelo viagem_id
     - Só depois chama add_intinerario com o viagem_id recebido
     - NUNCA uses viagem_id: 1, usa sempre o id devolvido pelo add_viagem
@@ -153,26 +153,6 @@ export const chat = ai.chats.create({
     - Apenas responde sobre viagens.
 
     Não perguntes o nome da viagem - inventa um nome criativo e simples!
-        `                        
+        `
     }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

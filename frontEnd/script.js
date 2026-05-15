@@ -1,10 +1,15 @@
 const BASE_URL = 'http://localhost:3000';
 
 
-async function enviarMensagem() {
-    const mensagem = document.getElementById('input-mensagem').value;
 
-    if (mensagem === '') return;
+async function enviarMensagem() {
+    const mensagem = document.getElementById('input-mensagem').value.trim();
+
+    if (!mensagem) return;
+    if (mensagem.length > 500) {
+        adicionarMensagemBot('❌ Mensagem demasiado longa (máximo 500 caracteres).');
+        return;
+    }
 
     adicionarMensagemUtilizador(mensagem);
     document.getElementById('input-mensagem').value = '';
@@ -12,6 +17,7 @@ async function enviarMensagem() {
 
     // cria div do bot vazia para ir preenchendo
     const divBot = adicionarMensagemBot('');
+    let respostaStreaming = '';
 
     // usa EventSource para receber o stream
     const eventSource = new EventSource('http://localhost:3000/api/chat?message=' + encodeURIComponent(mensagem));
@@ -19,10 +25,19 @@ async function enviarMensagem() {
    eventSource.onmessage = function(evento) {
     if (evento.data === '[DONE]') {
         eventSource.close();
-        document.getElementById('btn-enviar').disabled = false;
-        
-        // chamar o POST para criar e guardar o itinerário
-        fetch(BASE_URL + '/api/teste', {
+
+        // só chama o function calling se o chatbot sinalizou uma ação
+        const eUmaAcao = respostaStreaming.includes('processar');
+
+        if (!eUmaAcao) {
+            document.getElementById('btn-enviar').disabled = false;
+            return;
+        }
+
+        // mostrar loading enquanto o function calling processa
+        const divLoading = adicionarMensagemBot('⏳ A executar a ação...');
+
+        fetch(BASE_URL + '/api/acao', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mensagem: mensagem })
@@ -31,20 +46,29 @@ async function enviarMensagem() {
             return resposta.json();
         })
         .then(function(dados) {
-            console.log('Itinerário criado:', dados);
-            console.log('Action:', dados.action);
-            console.log('Resposta:', dados.resposta);
-            console.log('Tipo da resposta:', typeof dados.resposta);
+            console.log('Resposta function calling:', dados);
+            divLoading.remove();
 
+            if (dados.erro) {
+                adicionarMensagemBot('❌ ' + dados.erro);
+            } else if (dados.resposta) {
+                adicionarMensagemBot(dados.resposta);
+            }
 
-         if (dados.resposta && dados.action !== 'NONE') {
-        adicionarMensagemBot(dados.resposta);
-    }   
-            carregarItinerariosDaBD(); // ← agora vai buscar e mostrar
+            carregarItinerariosDaBD();
+        })
+        .catch(function(erro) {
+            console.error('Erro no function calling:', erro);
+            divLoading.remove();
+            adicionarMensagemBot('❌ Erro ao executar a ação. Tenta novamente.');
+        })
+        .finally(function() {
+            document.getElementById('btn-enviar').disabled = false;
         });
 
     } else {
-        divBot.querySelector('.texto-mensagem').innerHTML += evento.data; // vai concatendo os chucks ate ter done
+        respostaStreaming += evento.data;
+        divBot.querySelector('.texto-mensagem').innerHTML += evento.data;
     }
 };
 }
@@ -73,7 +97,7 @@ function adicionarMensagemUtilizador(texto) {
 }
 
 async function carregarItinerariosDaBD() {
-    const resposta   = await fetch('http://localhost:3000/api/teste');
+    const resposta   = await fetch('http://localhost:3000/api/acao');
     const itinerarios = await resposta.json();
 
      console.log('Itinerários recebidos:', itinerarios);
@@ -127,20 +151,31 @@ async function carregarItinerariosDaBD() {
 }
 
 async function apagarViagem(id) {
-    await fetch(BASE_URL + '/api/roteiro/' + id, { method: 'DELETE' });
+    if (!confirm('Tens a certeza que queres apagar esta viagem e todos os seus dias?')) return;
 
-    document.getElementById('viagem-' + id).remove();
-
-  // se não houver mais viagens, mostrar mensagem
-    const lista = document.getElementById('lista-roteiro');
-    if (lista.children.length === 0) {
-        document.getElementById('sem-roteiro').style.display = 'block';
+    try {
+        const resposta = await fetch(BASE_URL + '/api/acao/' + id, { method: 'DELETE' });
+        if (!resposta.ok) throw new Error();
+        document.getElementById('viagem-' + id).remove();
+        const lista = document.getElementById('lista-roteiro');
+        if (lista.children.length === 0) {
+            document.getElementById('sem-roteiro').style.display = 'block';
+        }
+    } catch {
+        alert('Erro ao apagar a viagem. Tenta novamente.');
     }
 }
 
 async function apagarItem(id) {
-    await fetch(BASE_URL + '/api/roteiro/dia/' + id, { method: 'DELETE' });
-    document.getElementById('item-' + id).remove();
+    if (!confirm('Tens a certeza que queres remover este dia?')) return;
+
+    try {
+        const resposta = await fetch(BASE_URL + '/api/acao/dia/' + id, { method: 'DELETE' });
+        if (!resposta.ok) throw new Error();
+        document.getElementById('item-' + id).remove();
+    } catch {
+        alert('Erro ao remover o dia. Tenta novamente.');
+    }
 }
 
 async function limparConversa() {

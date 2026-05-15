@@ -1,9 +1,16 @@
-import { chat } from '../services/testeFuncionCalling.js';
+import { chat } from '../services/acaoService.js';
 import db from '../db.js';
 
-export async function testeControllerCalling(req, res) {
+export async function acaoController(req, res) {
 
-    const promptUser = req.body.mensagem;
+    const promptUser = req.body.mensagem?.trim();
+
+    if (!promptUser) {
+        return res.status(400).json({ erro: 'Mensagem em falta.' });
+    }
+    if (promptUser.length > 500) {
+        return res.status(400).json({ erro: 'Mensagem demasiado longa (máximo 500 caracteres).' });
+    }
 
     let currentResponse = await chat.sendMessage({
         message: promptUser
@@ -13,7 +20,7 @@ export async function testeControllerCalling(req, res) {
     let step = 1;
     const MAX_STEPS = 5;
 
-    while (currentResponse.functionCalls?.length && step <= MAX_STEPS) { 
+    while (currentResponse.functionCalls?.length && step <= MAX_STEPS) {
         console.log(`\n🔁 STEP ${step}`);
         console.log("📋 Funções solicitadas pelo Gemini:", currentResponse.functionCalls.map(f => f.name));
 
@@ -128,16 +135,21 @@ export async function testeControllerCalling(req, res) {
         step++;
     }
 
+    const respostaFinal = currentResponse.text || 'Ação executada com sucesso!';
+
+    const [[ultima]] = await db.execute('SELECT MAX(id) AS id FROM chat_history');
+    await db.execute('UPDATE chat_history SET ai_response = ? WHERE id = ?', [respostaFinal, ultima.id]);
+
     console.log("\n🏁 Resposta FINAL:");
-    res.json({ resposta: currentResponse.text || 'Ação executada com sucesso!' });
-    console.log("\n🏁 FINAL:", currentResponse.text);
+    res.json({ resposta: respostaFinal });
+    console.log("\n🏁 FINAL:", respostaFinal);
 }
 
 export async function getItinerariosController(req, res) {
     try {
 
         const [rows] = await db.execute(`
-            SELECT 
+            SELECT
                 viagens.id AS viagem_id,
                 viagens.nome AS viagem_nome,
                 itinerario.id,
@@ -159,25 +171,33 @@ export async function getItinerariosController(req, res) {
 }
 
 export async function apagarViagemController(req, res) {
-    const { id } = req.params;
+    const id = parseInt(req.params.id);
+
+    if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ erro: 'ID inválido.' });
+    }
 
     try {
         await db.execute('DELETE FROM viagens WHERE id = ?', [id]);
         res.json({ mensagem: 'Viagem apagada com sucesso!' });
     } catch (erro) {
-        console.error('Erro ao apagar item:', erro);
-        res.status(500).json({ erro: 'Erro ao apagar item' });
+        console.error('Erro ao apagar viagem:', erro);
+        res.status(500).json({ erro: 'Erro ao apagar viagem.' });
     }
 }
 
 export async function apagarItemController(req, res) {
-    const { id } = req.params;
+    const id = parseInt(req.params.id);
+
+    if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ erro: 'ID inválido.' });
+    }
 
     try {
         await db.execute('DELETE FROM itinerario WHERE id = ?', [id]);
         res.json({ mensagem: 'Item apagado com sucesso!' });
-
     } catch (erro) {
-        res.status(500).json({ erro: 'Erro ao apagar item' });
+        console.error('Erro ao apagar item:', erro);
+        res.status(500).json({ erro: 'Erro ao apagar item.' });
     }
 }

@@ -3,10 +3,13 @@ import db from "../db.js";
 
 export async function chatStreamController(req, res) {
     // recebe a mensagem do utilizador
-    const userMessage = req.query.message;
+    const userMessage = req.query.message?.trim();
 
   if (!userMessage) {
-    return res.status(400).send('Missing message parameter');
+    return res.status(400).send('Mensagem em falta.');
+  }
+  if (userMessage.length > 500) {
+    return res.status(400).send('Mensagem demasiado longa (máximo 500 caracteres).');
   }
 
   // configura o streamming
@@ -52,7 +55,7 @@ export async function chatStreamController(req, res) {
 }
 
 export async function getHistoricoController(req, res) {
-  try { 
+  try {
   const [rows] = await db.execute(
         'SELECT * FROM chat_history ORDER BY created_at ASC'
     );
@@ -60,6 +63,16 @@ export async function getHistoricoController(req, res) {
   } catch (error) {
      console.error('Erro ao buscar histórico:', error.message);
         res.status(500).json({ erro: 'Erro ao buscar histórico!' });
+  }
+}
+
+export async function limparHistoricoController(req, res) {
+  try {
+    await db.execute('DELETE FROM chat_history');
+    res.json({ mensagem: 'Histórico apagado com sucesso!' });
+  } catch (error) {
+    console.error('Erro ao limpar histórico:', error.message);
+    res.status(500).json({ erro: 'Erro ao limpar histórico!' });
   }
 }
 
