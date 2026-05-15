@@ -157,3 +157,27 @@ export async function getItinerariosController(req, res) {
         res.status(500).json({ erro: 'Erro ao buscar itinerários' });
     }
 }
+
+export async function apagarViagemController(req, res) {
+    const { id } = req.params;
+
+    try {
+        await db.execute('DELETE FROM viagens WHERE id = ?', [id]);
+        res.json({ mensagem: 'Viagem apagada com sucesso!' });
+    } catch (erro) {
+        console.error('Erro ao apagar item:', erro);
+        res.status(500).json({ erro: 'Erro ao apagar item' });
+    }
+}
+
+export async function apagarItemController(req, res) {
+    const { id } = req.params;
+
+    try {
+        await db.execute('DELETE FROM itinerario WHERE id = ?', [id]);
+        res.json({ mensagem: 'Item apagado com sucesso!' });
+
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao apagar item' });
+    }
+}
