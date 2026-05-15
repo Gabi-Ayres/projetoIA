@@ -22,7 +22,7 @@ async function enviarMensagem() {
         document.getElementById('btn-enviar').disabled = false;
         
         // chamar o POST para criar e guardar o itinerário
-        fetch(BASE_URL + '/api/roteiro', {
+        fetch(BASE_URL + '/api/teste', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mensagem: mensagem })
@@ -73,7 +73,7 @@ function adicionarMensagemUtilizador(texto) {
 }
 
 async function carregarItinerariosDaBD() {
-    const resposta   = await fetch('http://localhost:3000/api/roteiro');
+    const resposta   = await fetch('http://localhost:3000/api/teste');
     const itinerarios = await resposta.json();
 
      console.log('Itinerários recebidos:', itinerarios);

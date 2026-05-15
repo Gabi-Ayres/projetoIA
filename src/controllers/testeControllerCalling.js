@@ -132,3 +132,28 @@ export async function testeControllerCalling(req, res) {
     res.json({ resposta: currentResponse.text || 'Ação executada com sucesso!' });
     console.log("\n🏁 FINAL:", currentResponse.text);
 }
+
+export async function getItinerariosController(req, res) {
+    try {
+
+        const [rows] = await db.execute(`
+            SELECT 
+                viagens.id AS viagem_id,
+                viagens.nome AS viagem_nome,
+                itinerario.id,
+                itinerario.dia,
+                itinerario.local_nome,
+                itinerario.transporte,
+                itinerario.descricao
+            FROM viagens
+            JOIN itinerario ON viagens.id = itinerario.viagem_id
+            ORDER BY viagens.id, itinerario.dia ASC
+        `);
+
+        res.json(rows);
+
+    } catch (erro) {
+        console.error('Erro ao buscar itinerários:', erro);
+        res.status(500).json({ erro: 'Erro ao buscar itinerários' });
+    }
+}
